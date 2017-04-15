@@ -1,0 +1,74 @@
+initialize() {
+
+	defineConstant("seqLength", 7000000);
+	defineConstant("Lns_over_Ls", 2.31);
+	defineConstant("ROHcutoff", 1607000);
+	defineConstant("simScalFac", 10);
+	defineConstant("sampleSize", 10);
+	initializeMutationRate(1.5e-8*simScalFac);
+	setSeed(9);
+	// m1 mutation type: neutral
+	initializeMutationType("m1", 0.5, "f", 0.0);
+  // m2 mutation type: NS
+	initializeMutationType("m2", 0.5, "g", -0.02*simScalFac, 0.2);
+	
+	m2.convertToSubstitution = T;
+	m2.mutationStackPolicy = "f";
+	m1.mutationStackPolicy = "f";
+ 
+	// g1 genomic element type: uses m1 for all mutations
+	initializeGenomicElementType("g1", c(m1, m2), c(1,Lns_over_Ls));
+	initializeGenomicElementType("g2", m1, 1);
+	initializeGenomicElementType("g3", m1, 1);
+	
+	// Generate random genes along an approximately 100000-base chromosome
+	base = 0;
+	nc_length_total = 0;
+	in_length_total = 0;
+	ex_length_total = 0;
+	while (base < seqLength) {
+		// make a non-coding region
+		nc_length = asInteger(runif(1, 100, 5000)); nc_length_total = nc_length_total + nc_length;
+		initializeGenomicElement(g2, base, base + nc_length - 1);
+		base = base + nc_length;
+		// make first exon
+		ex_length = asInteger(rlnorm(1, log(50), log(2))) + 1; ex_length_total = ex_length_total + ex_length;
+		initializeGenomicElement(g1, base, base + ex_length - 1);
+		base = base + ex_length;
+		// make additional intron-exon pairs
+		do {
+			in_length = asInteger(rlnorm(1, log(100), log(1.5))) + 10; in_length_total = in_length_total + in_length;
+			initializeGenomicElement(g3, base, base + in_length - 1);
+			base = base + in_length;
+			ex_length = asInteger(rlnorm(1, log(50), log(2))) + 1; ex_length_total = ex_length_total + ex_length;
+			initializeGenomicElement(g1, base, base + ex_length - 1);
+			base = base + ex_length;
+		} while (runif(1) < 0.8); // 20% probability of stopping
+	}
+	// final non-coding region
+	nc_length = asInteger(runif(1, 100, 5000));
+	initializeGenomicElement(g2, base, base + nc_length - 1);
+
+	// uniform chromosome of length 100 kb with uniform recombination
+	initializeRecombinationRate(1e-8*simScalFac);
+	
+	// define some constants that will be used later for calculating summary statistics
+	defineConstant("in_length_total_c", in_length_total);
+	defineConstant("ex_length_total_c", ex_length_total);
+	defineConstant("nc_length_total_c", nc_length_total);
+
+}
+
+1 {
+  sim.addSubpop("p1", asInteger(floor(20000/simScalFac)));
+	sim.tag = 0;
+  
+ }
+
+1:20000 {
+if (sim.generation % 100 == 0){
+cat(sim.generation + "\n");
+}
+}
+
+
